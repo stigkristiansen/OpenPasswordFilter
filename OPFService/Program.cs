@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.ServiceProcess;
 using System.IO;
+using System.Configuration;
 
 namespace OPFService {
     class OPFService : ServiceBase {
@@ -29,14 +30,34 @@ namespace OPFService {
         }
 
         static void Main(string[] args) {
+#if (!DEBUG)
+
+            try {
             ServiceBase.Run(new OPFService());
+            } catch (Exception e) {
+                Logger logger = new Logger();
+                logger.logException(e);
+            }            
+#else
+            OPFService opfService = new OPFService();
+            opfService.OnStart(args);
+#endif
         }
 
         protected override void OnStart(string[] args) {
             base.OnStart(args);
-            OPFDictionary d = new OPFDictionary(AppDomain.CurrentDomain.BaseDirectory + "\\opfmatch.txt", AppDomain.CurrentDomain.BaseDirectory + "opfcont.txt");
-            // OPFDictionary d = new OPFDictionary("c:\\windows\\system32\\opfmatch.txt", "c:\\windows\\system32\\opfcont.txt");
-            NetworkService svc = new NetworkService(d);
+            Boolean useDatabaseCheck = Convert.ToBoolean(ConfigurationManager.AppSettings["OPFDatabaseCheck"]);
+
+            OPFDictionary d;
+            NetworkService svc;
+
+            if (useDatabaseCheck) {
+                svc = new NetworkService();
+            } else {
+                d = new OPFDictionary(AppDomain.CurrentDomain.BaseDirectory + "\\opfmatch.txt", AppDomain.CurrentDomain.BaseDirectory + "opfcont.txt");
+                svc = new NetworkService(d);
+            }
+
             worker = new Thread(() => svc.main());
             worker.Start();
         }

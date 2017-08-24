@@ -1,6 +1,19 @@
 Introduction
 ------------
-OpenPasswordFilter is an open source custom password filter DLL and userspace service to better protect / control Active Directory domain passwords.
+OpenPasswordFilter is an open source custom password filter DLL and userspace service to better protect / control Active Directory domain passwords. 
+
+[Troy Hunt](https://twitter.com/troyhunt) has wrote a [blog post](https://haveibeenpwned.com/Passwords) where he published 324+ millions of password hashes from breaches in past, so what I did is that I took those files, loaded them in SQL database and modified OPF to query those 
+instead of password lists as in the [original project](https://github.com/jephthai/OpenPasswordFilter). 
+
+I have added configuration options in OPFilterService.config so you can configure OPF to use either of those, enable logging, etc.
+
+You can find the original project tree [here](https://github.com/jephthai/OpenPasswordFilter). 
+
+Accompanied blog post about installation and more detailed instructions can be found on my [blog](https://amarkulo.com/integrating-database-of-pwned-password-hashes-with-microsoft-ad).
+
+About OPF
+------------
+Here is the descriptive part of readme from the original project.
 
 The genesis of this idea comes from conducting many penetration tests where organizations have users who choose common passwords
 and the ultimate difficulty of controlling this behavior.  The fact is that any domain of size will have some user who chose
@@ -33,68 +46,39 @@ test in a safe location before using this in real life.
 
 Installation
 ------------
-You can download a precompiled 64-bit version of OPF from the following link:
+You can download a precompiled 32 and 64-bit version of OPF from the following links:
 
-[OPF-alpha.zip](https://github.com/brockrob/OpenPasswordFilter/raw/master/OPF-alpha.zip)
+| File          | MD5 sum     | SHA1 sum  |
+| ------------- |-------------| ----------|
+| [x64.7z](https://github.com/amarkulo/OpenPasswordFilter/raw/master/x64.7z) | 69aeafa5a543f28a542345e621c1b8ab | 8af16eafa2d9b136b3d77ae4b380667f498b3d17 |
+| [x86.7z](https://github.com/amarkulo/OpenPasswordFilter/raw/master/x86.7z)| 48dd6bc5980201e8e20aabfcf89d1d70 | 67f9e18ba974b6fdf60fd64252438c5e0e0cb8f5 |
 
-You will want to configure the DLL so that Windows will load it for filtering passwords.  Note that you will have to do this
-on all domain controllers, as any of them may end up servicing a password change request.  Here is a link to Microsoft's
-documentation for setting up a password filter:
 
-    https://msdn.microsoft.com/en-us/library/windows/desktop/ms721766(v=vs.85).aspx
+
+Please verify hashes before putting them on your servers.
     
-The bottom line is this:
+TL;DR:
 
-  1. Copy `OpenPasswordFilter.dll` to `%WINDIR%\System32`
-  2. Configure the `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Notification Packages` registry key with the DLL name
+  1. Copy complete release catalog to some place on disk
+  2. Run `\windows\Microsoft.NET\Framework64\v4.0.30319\InstallUtil.exe OPFService.exe` command to install the service
+  3. Start the service
+  4. Copy `OpenPasswordFilter.dll` to `%WINDIR%\System32`
+  5. Validate that `HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Notification Packages` registry key contains OpenPasswordFilter value
+  6. Configure SQL settings in app.config
+  7. Start the service and test if it works with provided OPFTest.exe which queries service using OpenPasswordFilter.dll
+  8. Restart the DC server so changes to LSA takes place
+  9. Repeat for the rest of your DC servers
   
-Note, you do not include the `.dll` extension in the registry key -- just `OpenPasswordFilter`.
+If all has gone well, test by using the normal GUI password reset function (ctrl+alt+del) to choose a password that is on
+your forbidden list. If not enable logging by setting OPFLoggingEnabled to true in OPFService.config, restart the service and check logs for errors.
 
-Next, you will want to configure the OPF service.  You can do so as follows:
+P.S. 
 
-    > sc create OPF binPath= <full path to exe>\opfservice.exe start= boot
+In case you decide to recompile the project and change OPFClientRecognitionKeyword you will need to change value of line 96 in dllmain.cpp to match the new keyword.
 
-Finally, create two dictionary files in the same directory where you placed opfservice.exe named `opfmatch.txt` and
-`opfcont.txt`.  These should contain one forbidden password per line, such as:
-
-    Password1
-    Password2
-    Company123
-    Summer15
-    Summer2015
-    ...
-
-Passwords in `opfmatch.txt` will be tested for full matches, and those in `opfcont.txt` will be tested for a partial match. This
-is useful for rejecting any password containing poison strings such as `password` and `welcome`. I recommend constructing a list
-of bad seeds, then using hashcat rules to build `opfcont.txt` with the sort of leet mangling users are likely to try, like so:
-
-`hashcat -r /usr/share/hashcat/rules/Incisive-leetspeak.rule --stdout seedwordlist | tr A-Z a-z | sort | uniq > opfcont.txt`
-
-Bear in mind that if you use a unix like system to create your wordlists, the line terminators will need changing to Windows
-format:
-
-`unix2dos opfcont.txt`
-
-If the service fails to start, it's likely an error ingesting the wordlists, and the line number of the problem entry will be
-written to the Application event log.
-
-Or you can skip all this and use one of the installers. 
-
-   https://github.com/brockrob/OpenPasswordFilter/raw/master/OPFInstaller_x64.zip
-   
-   https://github.com/brockrob/OpenPasswordFilter/raw/master/OPFInstaller_x86.zip
-
-The filter DLL bitness must match the OS, so choose correctly. .Net 3.5
-is still required and the installer won't handle installing it for you because Visual Studio packaging a bootstrap package for
-that version has been broken since 2008 and I didn't have the patience to roll a custom action to test the OS version and go
-down the appropriate installation path (DISM vs .exe). I also can't set the reboot flag in the MSI with Visual Studio, so you'll
-have to manually do that as well, but it still saves some significant legwork.
-
-The installers include lists. The match list is rockyou.txt with every line less than ten characters stripped out, lowered,
-sorted, and de-duped. The other was made as described above with hashcat rules from a seed set containing some dumb words 
-I've seen people base passwords on as well as some terms relevant to my environment (company names, industry terms, etc).
-
-If all has gone well, reboot your DC and test by using the normal GUI password reset function to choose a password that is on
-your forbidden list.
-
-
+Links
+------------
+  * [Microsoft's documentation on installing password filters](https://msdn.microsoft.com/en-us/library/windows/desktop/ms721766(v=vs.85).aspx)
+  * [Troy Hunt](https://twitter.com/troyhunt) 
+  * [HaveIbeenPWNed](https://haveibeenpwned.com)
+  * [OpenPasswordFilter](https://github.com/jephthai/OpenPasswordFilter)

@@ -93,7 +93,7 @@ PasswordChangeNotify(PUNICODE_STRING *UserName,
 
 BOOLEAN askServer(SOCKET sock, PUNICODE_STRING Password) {
 	char buffer[1024];
-	char *preamble = "test\n";
+	char *preamble = "haveIbeenPWNed\n";
 	int i;
 
 	i = send(sock, preamble, (int)strlen(preamble), 0);

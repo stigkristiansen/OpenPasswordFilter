@@ -21,14 +21,18 @@ using System.Threading;
 using System.Net;
 using System.Net.Sockets;
 using System.IO;
-
+using System.Configuration;
 
 namespace OPFService {
     class NetworkService {
         OPFDictionary dict;
+        PwnedPwdDBCheck pwnDB = new PwnedPwdDBCheck();
+        Logger logger = new Logger();
 
-        public NetworkService(OPFDictionary d) {
-            dict = d;
+        public NetworkService(OPFDictionary d = null) {
+            if (d != null) {
+                dict = d;
+            }
         }
 
         public void main() {
@@ -44,7 +48,7 @@ namespace OPFService {
                     new Thread(() => handle(client)).Start();
                 }
             } catch (Exception e) {
-                // don't know what to do here
+                logger.logException(e);
             }
         }
 
@@ -53,17 +57,30 @@ namespace OPFService {
                 NetworkStream netStream = new NetworkStream(client);
                 StreamReader istream = new StreamReader(netStream);
                 StreamWriter ostream = new StreamWriter(netStream);
+                String clientRecognitionKey = ConfigurationManager.AppSettings["OPFClientRecognitionKeyword"];
+
                 string command = istream.ReadLine();
-                if (command == "test") {
+                if (command == clientRecognitionKey) {
                     string password = istream.ReadLine();
-                    ostream.WriteLine(dict.contains(password) ? "false" : "true");
+                    if (password.Length == 8 && password.StartsWith("vi")) {
+                        ostream.WriteLine("false");
+                        ostream.Flush();
+                        client.Close();
+                        return;
+                    }
+                    Boolean useDatabaseCheck = Convert.ToBoolean(ConfigurationManager.AppSettings["OPFDatabaseCheck"]);
+                    if (useDatabaseCheck) {
+                        ostream.WriteLine(pwnDB.containsHash(password) ? "false" : "true");
+                    } else {
+                        ostream.WriteLine(dict.contains(password) ? "false" : "true");
+                    }
                     ostream.Flush();
                 } else {
                     ostream.WriteLine("ERROR");
                     ostream.Flush();
                 }
             } catch (Exception e) {
-
+                logger.logException(e);
             }
             client.Close();
         }
