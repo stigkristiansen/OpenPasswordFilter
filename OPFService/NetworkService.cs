@@ -68,12 +68,15 @@ namespace OPFService {
                         client.Close();
                         return;
                     }
-                    Boolean useDatabaseCheck = Convert.ToBoolean(ConfigurationManager.AppSettings["OPFDatabaseCheck"]);
-                    if (useDatabaseCheck) {
-                        ostream.WriteLine(pwnDB.containsHash(password) ? "false" : "true");
-                    } else {
-                        ostream.WriteLine(dict.contains(password) ? "false" : "true");
-                    }
+
+                    Boolean result;
+                    result = dict.contains(password);
+                    
+                    if (!result)
+                        result = pwnDB.containsHash(password);
+                    
+                    ostream.WriteLine(result? "false" : "true");
+                    
                     ostream.Flush();
                 } else {
                     ostream.WriteLine("ERROR");

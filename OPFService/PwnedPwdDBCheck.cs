@@ -6,6 +6,7 @@ using System.Collections.Specialized;
 using System.Configuration;
 using System.Data.SqlClient;
 using System.Security.Cryptography;
+using System.Diagnostics;
 
 namespace OPFService
 {
@@ -15,22 +16,61 @@ namespace OPFService
         private SqlConnection connection;
         private Logger logger = new Logger();
 
-        public Boolean containsHash(string hash) {
+        public PwnedPwdDBCheck()
+        {
+            String msg = "";
+            EventLogEntryType eventType;
+            if (InitConnection())
+            {
+                msg = "Connected to the password database";
+                eventType = EventLogEntryType.Information;
+                CloseConnection();
+            }
+            else
+            {
+                eventType = EventLogEntryType.Error;
+                msg = "Failed to connect to the password database";
+            }
 
+            using (EventLog eventLog = new EventLog("Application"))
+            {
+                eventLog.Source = "Application";
+                eventLog.WriteEntry(msg, eventType, 101, 1);
+            }
+        }
+
+        public Boolean containsHash(string hash) {
             // if there is no sql server return false (no password hash found) so users can change password at all
-            if (!InitConnection()) return false;
+            if (!InitConnection())
+            {
+                return false;
+            }
 
             try {
-
                 String tableName = ConfigurationManager.AppSettings["OPFDatabaseTableName"];
                 SqlCommand command = new SqlCommand("Select hash from " + tableName + " where hash='" + Hash(hash) + "'", connection);
 
                 using (SqlDataReader reader = command.ExecuteReader()) {
                     if (reader.Read()) {
                         CloseConnection();
+                        
+                        using (EventLog eventLog = new EventLog("Application"))
+                        {
+                            eventLog.Source = "Application";
+                            eventLog.WriteEntry("Password matched a string in the bad password database", EventLogEntryType.Warning, 101, 1);
+                        }
+
                         return true;
+
                     } else {
                         CloseConnection();
+
+                        using (EventLog eventLog = new EventLog("Application"))
+                        {
+                            eventLog.Source = "Application";
+                            eventLog.WriteEntry("Password passed the bad password database", EventLogEntryType.Information, 101, 1);
+                        }
+
                         return false;
                     }
                 }
@@ -38,13 +78,19 @@ namespace OPFService
             } catch (Exception e) {
                 logger.logException(e);
                 CloseConnection();
-                return true;
+
+                using (EventLog eventLog = new EventLog("Application"))
+                {
+                    eventLog.Source = "Application";
+                    eventLog.WriteEntry("Failed while trying to match the password to a string in the bad password database", EventLogEntryType.Error, 101, 1);
+                }
+
+                return false;
             }
 
         }
 
         private Boolean InitConnection() {
-
             connection = new SqlConnection();
             Boolean useTrustedConnection = Convert.ToBoolean(ConfigurationManager.AppSettings["OPFUseTrustedConnection"]);
             String serverName = ConfigurationManager.AppSettings["OPFDatabaseServer"];
@@ -83,7 +129,6 @@ namespace OPFService
             connection.Dispose();
 
         }
-
         static string Hash(string input) {
             using (SHA1Managed sha1 = new SHA1Managed()) {
                 var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(input));

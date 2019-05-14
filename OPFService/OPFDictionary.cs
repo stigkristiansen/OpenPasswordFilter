@@ -28,46 +28,71 @@ namespace OPFService {
 
         public OPFDictionary(string pathmatch, string pathcont) {
             string line;
-            StreamReader infilematch = new StreamReader(pathmatch);
             matchlist = new List<string>();
-            int a = 1;
-            while ((line = infilematch.ReadLine()) != null)
+            int a = 0;
+            StreamReader infilematch = null; ;
+            try
             {
-                try
+                infilematch = new StreamReader(pathmatch);
+
+                while ((line = infilematch.ReadLine()) != null)
                 {
-                    matchlist.Add(line.ToLower());
-                    a += 1;
-                }
-                catch
-                {
-                    using (EventLog eventLog = new EventLog("Application"))
+                    if (line.Length > 0)
                     {
-                        eventLog.Source = "Application";
-                        eventLog.WriteEntry("Died trying to ingest line number " + a.ToString() + " of opfmatch.txt.", EventLogEntryType.Information, 101, 1);
+                        a += 1;
+                        matchlist.Add(line.ToLower());
                     }
+                }
+
+                infilematch.Close();
+
+                using (EventLog eventLog = new EventLog("Application"))
+                {
+                    eventLog.Source = "Application";
+                    eventLog.WriteEntry("Loaded " + a.ToString() + " line(s) from opfmatch.txt.", EventLogEntryType.Information, 101, 1);
                 }
             }
-            infilematch.Close();
-            StreamReader infilecont = new StreamReader(pathcont);
-            contlist = new List<string>();
-            a = 1;
-            while ((line = infilecont.ReadLine()) != null)
+            catch
             {
-                try
+                using (EventLog eventLog = new EventLog("Application"))
                 {
-                    contlist.Add(line.ToLower());
-                    a += 1;
-                }
-                catch
-                {
-                    using (EventLog eventLog = new EventLog("Application"))
-                    {
-                        eventLog.Source = "Application";
-                        eventLog.WriteEntry("Died trying to ingest line number " + a.ToString() + " of opfcont.txt.", EventLogEntryType.Information, 101, 1);
-                    }
+                    eventLog.Source = "Application";
+                    eventLog.WriteEntry("Failed to load opfmatch.txt.", EventLogEntryType.Error, 101, 1);
                 }
             }
 
+            contlist = new List<string>();
+            a = 0;
+            StreamReader infilecont = null;
+            try
+            {
+                infilecont = new StreamReader(pathcont);
+
+                while ((line = infilecont.ReadLine()) != null)
+                {
+                    if (line.Length > 0)
+                    {
+                        a += 1;
+                        contlist.Add(line.ToLower());
+                    }
+                }
+
+                infilecont.Close();
+
+                using (EventLog eventLog = new EventLog("Application"))
+                {
+                    eventLog.Source = "Application";
+                    eventLog.WriteEntry("Loaded " + a.ToString() + " line(s) from opfcont.txt.", EventLogEntryType.Information, 101, 1);
+                }
+            }
+            catch
+            {
+                using (EventLog eventLog = new EventLog("Application"))
+                {
+                    eventLog.Source = "Application";
+                    eventLog.WriteEntry("Failed to load opfcont.txt.", EventLogEntryType.Error, 101, 1);
+                }
+            }
         }
 
         public Boolean contains(string word) {
@@ -78,7 +103,7 @@ namespace OPFService {
                     using (EventLog eventLog = new EventLog("Application"))
                     {
                         eventLog.Source = "Application";
-                        eventLog.WriteEntry("Password attempt contains poison string " + badstr +", case insensitive.", EventLogEntryType.Information, 101, 1);
+                        eventLog.WriteEntry("Password contains poison string " + badstr +", case insensitive.", EventLogEntryType.Warning, 101, 1);
                     }
                     return true;
                 }
@@ -88,7 +113,7 @@ namespace OPFService {
                 using (EventLog eventLog = new EventLog("Application"))
                 {
                     eventLog.Source = "Application";
-                    eventLog.WriteEntry("Password attempt matched a string in the bad password list", EventLogEntryType.Information, 101, 1);
+                    eventLog.WriteEntry("Password matched a string in the bad password list", EventLogEntryType.Warning, 101, 1);
                 }
                 return true;
             }
@@ -97,7 +122,7 @@ namespace OPFService {
                 using (EventLog eventLog = new EventLog("Application"))
                 {
                     eventLog.Source = "Application";
-                    eventLog.WriteEntry("Password passed custom filter.", EventLogEntryType.Information, 101, 1);
+                    eventLog.WriteEntry("Password passed local lists.", EventLogEntryType.Information, 101, 1);
                 }
                 return false;
             }
